@@ -15,8 +15,14 @@ The deployment directory is `~/.local/share/almis/deploy`, outside any Git workt
 - `.env.stack` records the current main image and non-secret Compose settings.
 - `cloudflare-state.json` records the zone and tunnel UUID.
 - `cloudflared/token` authenticates the remotely managed tunnel.
+- `cloudflared/tutorials-signing-key` is a host-only HMAC key mounted read-only into the API.
+- `~/.local/share/almis/tutorials/main` is the published main tutorial store. `pr-N` directories hold PR preview stores and fall back to `main` when absent.
 
 The API and database have no published ports. The database only joins a private network belonging to that deployment. Traefik binds its local diagnostic port to `127.0.0.1:8080`. Cloudflared makes outbound connections, so no public inbound SSH port is required.
+
+## Tutorial media
+
+The backend reads `/srv/tutorials` from a read-only host mount. The manager creates `~/.local/share/almis/tutorials/main` during `prepare`, and `main` is the fallback for previews without a `pr-N` directory. FE-4 publishes content-addressed MP4 and poster files plus an atomically replaced `manifest.json` into these directories. The API receives `TUTORIALS_DIR=/srv/tutorials` and reads the HMAC key from `/run/secrets/tutorials-signing-key`; the key value is never placed in a Compose environment entry or image layer. Keep the host directory and key outside Git and back them up with the deployment host's protected files.
 
 The current frontend allowlist is `https://almishotel.com` and `https://www.almishotel.com`. Edit `ALLOWED_ORIGINS` in the production env file if the frontend uses other origins, using a JSON array. Add `ATTENDANCE_API_KEY` when configuring the attendance scanner. Restart the API after changing its env file.
 

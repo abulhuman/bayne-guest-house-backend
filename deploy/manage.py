@@ -51,6 +51,16 @@ def prepare_env(path, template=None):
     write_env(path, values)
 
 
+def ensure_secret(path):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not path.exists():
+        temporary = path.with_suffix(path.suffix + '.tmp')
+        temporary.write_text(secrets.token_urlsafe(48) + '\n')
+        os.chmod(temporary, 0o600)
+        temporary.replace(path)
+    os.chmod(path, 0o600)
+
+
 def cloudflare(*args):
     result = subprocess.run(['cf', *args], capture_output=True, text=True)
     if result.returncode:
@@ -105,6 +115,8 @@ def main():
                 if source / name != root / name:
                     shutil.copyfile(source / name, root / name)
             (root / 'cloudflared').mkdir(exist_ok=True, mode=0o700)
+            (root.parent / 'tutorials/main').mkdir(parents=True, exist_ok=True, mode=0o700)
+            ensure_secret(root / 'cloudflared/tutorials-signing-key')
             prepare_env(root / '.env.production', source / '.env.production')
             prepare_env(root / '.env.preview', source / '.env.preview')
             print(f'Prepared {root}; existing secrets preserved, values hidden.')
@@ -113,7 +125,12 @@ def main():
         if args.action == 'main':
             env_file = root / '.env.production'
             prepare_env(env_file)
+            tutorial_dir = root.parent / 'tutorials/main'
+            tutorial_key = root / 'cloudflared/tutorials-signing-key'
+            tutorial_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            ensure_secret(tutorial_key)
             settings = dict(APP_IMAGE=args.image, MAIN_HOST=args.host,
+                            TUTORIALS_HOST_DIR=str(tutorial_dir), TUTORIALS_SIGNING_KEY_FILE=str(tutorial_key),
                             HOST_UID=str(os.getuid()), HOST_GID=str(os.getgid()),
                             POSTGRES_VOLUME=read_env(env_file).get('POSTGRES_VOLUME', 'almis-main_postgres'))
             # External volume survives Compose teardown and preserves an existing installation.
@@ -132,7 +149,17 @@ def main():
                 defaults = read_env(root / '.env.preview')
                 write_env(env_file, {'ALLOWED_ORIGINS': defaults.get('ALLOWED_ORIGINS', '[]')})
             prepare_env(env_file)
+            tutorial_root = root.parent / 'tutorials'
+            tutorial_main = tutorial_root / 'main'
+            tutorial_dir = tutorial_root / f'pr-{args.pr}'
+            tutorial_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            tutorial_main.mkdir(parents=True, exist_ok=True, mode=0o700)
+            tutorial_key = root / 'cloudflared/tutorials-signing-key'
+            ensure_secret(tutorial_key)
+            if not tutorial_dir.is_dir():
+                tutorial_dir = tutorial_main
             settings = dict(PREVIEW_ID=f'pr-{args.pr}', PREVIEW_IMAGE=args.image or 'unused',
+                            TUTORIALS_HOST_DIR=str(tutorial_dir), TUTORIALS_SIGNING_KEY_FILE=str(tutorial_key),
                             PREVIEW_HOST=f'pr-{args.pr}-{args.host}', PREVIEW_ENV_FILE=str(env_file))
             compose = ['docker', 'compose', '--project-directory', str(root),
                        '--env-file', str(env_file), '-p', f'almis-preview-pr-{args.pr}',
