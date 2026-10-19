@@ -24,7 +24,13 @@ The API and database have no published ports. The database only joins a private 
 
 The backend reads `/srv/tutorials` from a read-only host mount. The manager creates `~/.local/share/almis/tutorials/main` during `prepare`, and `main` is the fallback for previews without a `pr-N` directory. FE-4 publishes content-addressed MP4 and poster files plus an atomically replaced `manifest.json` into these directories. The API receives `TUTORIALS_DIR=/srv/tutorials` and reads the HMAC key from `/run/secrets/tutorials-signing-key`; production and every preview use different key files, and the key value is never placed in a Compose environment entry or image layer. Keep the host directories and keys outside Git and back them up with the deployment host's protected files.
 
-Preview keys remain stable across redeploys and are deleted with their preview credentials during `remove-preview`. Falling back to main's media never reuses main's signing key.
+Compose refuses a missing tutorial source directory instead of creating a root-owned directory. Use the manager to create the main store before starting Compose directly. An existing empty store still serves an empty tutorial list.
+
+Preview keys remain stable across redeploys and are deleted with their preview credentials during `remove-preview`. Falling back to main's media never reuses main's signing key. Preview removal preserves the main store and any preview media store; the publisher owns media retention.
+
+The backend manager reserves `tutorials/pr-N` and `deploy/previews/pr-N` for backend PRs. Frontend previews must use a separate repository namespace for media and their own signing keys, credentials and Compose projects. They must not mount production's signing key or invoke this manager with a frontend PR number.
+
+Signed media URLs grant access to anyone holding the URL for up to one hour. Keep them out of shared logs. The API currently runs as root, so host chmod restrictions do not prove an unreadable-manifest failure; read-only mounts still prevent writes.
 
 Run `python3 -m unittest discover -s deploy -p 'test*.py' -v` from the checkout to check the tutorial deployment contract. The tests require Docker Compose with JSON config output, but do not start containers or publish DNS. They render both Compose files using temporary test credentials and exercise the manager with Docker and DNS calls mocked.
 
