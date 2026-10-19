@@ -61,6 +61,12 @@ def ensure_secret(path):
     os.chmod(path, 0o600)
 
 
+def tutorial_signing_key(root, preview=None):
+    if preview is None:
+        return root / 'cloudflared/tutorials-signing-key'
+    return root / f'previews/pr-{preview}/tutorials-signing-key'
+
+
 def cloudflare(*args):
     result = subprocess.run(['cf', *args], capture_output=True, text=True)
     if result.returncode:
@@ -116,7 +122,7 @@ def main():
                     shutil.copyfile(source / name, root / name)
             (root / 'cloudflared').mkdir(exist_ok=True, mode=0o700)
             (root.parent / 'tutorials/main').mkdir(parents=True, exist_ok=True, mode=0o700)
-            ensure_secret(root / 'cloudflared/tutorials-signing-key')
+            ensure_secret(tutorial_signing_key(root))
             prepare_env(root / '.env.production', source / '.env.production')
             prepare_env(root / '.env.preview', source / '.env.preview')
             print(f'Prepared {root}; existing secrets preserved, values hidden.')
@@ -126,7 +132,7 @@ def main():
             env_file = root / '.env.production'
             prepare_env(env_file)
             tutorial_dir = root.parent / 'tutorials/main'
-            tutorial_key = root / 'cloudflared/tutorials-signing-key'
+            tutorial_key = tutorial_signing_key(root)
             tutorial_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             ensure_secret(tutorial_key)
             settings = dict(APP_IMAGE=args.image, MAIN_HOST=args.host,
@@ -154,7 +160,7 @@ def main():
             tutorial_dir = tutorial_root / f'pr-{args.pr}'
             tutorial_root.mkdir(parents=True, exist_ok=True, mode=0o700)
             tutorial_main.mkdir(parents=True, exist_ok=True, mode=0o700)
-            tutorial_key = root / 'cloudflared/tutorials-signing-key'
+            tutorial_key = tutorial_signing_key(root, args.pr)
             ensure_secret(tutorial_key)
             if not tutorial_dir.is_dir():
                 tutorial_dir = tutorial_main
