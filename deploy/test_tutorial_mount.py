@@ -82,6 +82,7 @@ class TutorialMountTest(unittest.TestCase):
         self.assertEqual(mounts[0]['type'], 'bind')
         self.assertEqual(mounts[0]['source'], str(tutorial_dir.resolve()))
         self.assertTrue(mounts[0].get('read_only', False))
+        self.assertIs(mounts[0]['bind']['create_host_path'], False)
 
         attachments = api.get('secrets', [])
         self.assertEqual(len(attachments), 1)
@@ -140,6 +141,13 @@ class TutorialMountTest(unittest.TestCase):
             self.assertTrue(Path(main_store).is_dir())
             self.assertEqual([env['TUTORIALS_HOST_DIR'] for env in environments], [main_store] * 3)
 
+            main_files = {
+                'manifest.json': b'{"version": 1, "tutorials": []}\n',
+                'reception-tour.mp4': b'preserved main video bytes',
+            }
+            for name, content in main_files.items():
+                (Path(main_store) / name).write_bytes(content)
+
             preview_store = root.parent / 'tutorials/pr-42'
             preview_store.mkdir()
             self.assertEqual(invoke('preview', 42)['TUTORIALS_HOST_DIR'], str(preview_store))
@@ -151,6 +159,10 @@ class TutorialMountTest(unittest.TestCase):
             self.assertEqual(keys[0].read_bytes(), contents[0])
             self.assertEqual(keys[2].read_bytes(), contents[2])
             self.assertTrue(preview_store.is_dir())
+            self.assertEqual(
+                {path.name: path.read_bytes() for path in Path(main_store).iterdir()},
+                main_files,
+            )
 
 
 if __name__ == '__main__':
