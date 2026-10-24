@@ -35,9 +35,11 @@ $WslSettings = @(
     @{ Section = 'general'; Key = 'instanceIdleTimeout'; Value = '-1' }
 )
 $WindowsFeatures = 'Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform'
+# USERDOMAIN is WORKGROUP in an OpenSSH session, so take the account from the process token.
+$Account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $Autostart = @{
     S4U         = @{ Trigger = { New-ScheduledTaskTrigger -AtStartup }; TriggerClass = 'MSFT_TaskBootTrigger' }
-    Interactive = @{ Trigger = { New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME" }; TriggerClass = 'MSFT_TaskLogonTrigger' }
+    Interactive = @{ Trigger = { New-ScheduledTaskTrigger -AtLogOn -User $Account }; TriggerClass = 'MSFT_TaskLogonTrigger' }
 }[$AutostartLogon]
 # bash -s fails on CR bytes, which appear if the file went through a Windows Git checkout.
 $ProvisionScript = [byte[]]@([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'wsl-provision.sh')) | Where-Object { $_ -ne 13 })
@@ -72,6 +74,11 @@ function Get-PowerIndexes([string]$Subgroup, [string]$Setting) {
     $values = @([regex]::Matches($query.Output, '0x[0-9a-fA-F]+') | ForEach-Object { [Convert]::ToInt32($_.Value, 16) })
     if ($query.ExitCode -ne 0 -or $values.Count -lt 2) { throw "powercfg cannot read $Subgroup $Setting" }
     $values[-2], $values[-1]
+}
+
+function Test-LidSetting {
+    # The LIDACTION GUID, since powercfg labels are localized.
+    (Invoke-Native powercfg.exe '/query SCHEME_CURRENT SUB_BUTTONS LIDACTION').Output -match '5ca83367-6e45-459f-a27b-476b1d01c936'
 }
 
 function Set-PowerIndexes([string]$Subgroup, [string]$Setting) {
@@ -200,7 +207,7 @@ function Test-AutostartTask {
 function Register-AutostartTask {
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 `
         -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType $AutostartLogon
+    $principal = New-ScheduledTaskPrincipal -UserId $Account -LogonType $AutostartLogon
     $action = New-ScheduledTaskAction -Execute $WslExe -Argument $TaskArguments
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger (& $Autostart.Trigger) `
         -Principal $principal -Settings $settings -Force
@@ -228,7 +235,8 @@ $Steps = @(
     },
     @{
         Name   = 'Closing the lid does nothing'
-        Test   = { @(Get-PowerIndexes SUB_BUTTONS LIDACTION | Where-Object { $_ -ne 0 }).Count -eq 0 }
+        # Machines without a lid have no LIDACTION setting, and powercfg prints only the scheme header.
+        Test   = { -not (Test-LidSetting) -or @(Get-PowerIndexes SUB_BUTTONS LIDACTION | Where-Object { $_ -ne 0 }).Count -eq 0 }
         Set    = { Set-PowerIndexes SUB_BUTTONS LIDACTION }
         Reboot = $false
     },
