@@ -69,7 +69,7 @@ $ npm run test:cov
 
 ## Deploy
 
-The production path runs on the owner's machine behind a Cloudflare Tunnel. Traefik routes the main API and one container per same-repository pull request. Pushing a `v*` release tag on a `main` commit runs CI, then GitHub Actions builds an image and a local deployment runner starts it. Merging to `main` does not deploy. Every PR has a separate database, and closing it removes its containers and disposable data.
+The production path runs on the owner's machine behind a Cloudflare Tunnel. Traefik routes the main API and one container per same-repository pull request. Pushing a `v*` release tag on a `main` commit runs CI, then the local deployment runner builds the image and starts it. Merging to `main` does not deploy. Every PR has a separate database, and closing it removes its containers and disposable data.
 
 Follow [deploy/README.md](deploy/README.md) for host setup, Cloudflare DNS and tunnel configuration, local runner registration, and the migration recovery procedure.
 
