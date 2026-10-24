@@ -46,10 +46,21 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
+      TUTORIALS_DIR: /srv/tutorials
+      TUTORIALS_SIGNING_SECRET_FILE: /run/secrets/tutorials-signing-key
     depends_on:
       db:
         condition: service_healthy
     networks: [edge, database]
+    volumes:
+      - type: bind
+        source: ${TUTORIALS_HOST_DIR:?TUTORIALS_HOST_DIR must be set}
+        target: /srv/tutorials
+        read_only: true
+        bind:
+          create_host_path: false
+    secrets:
+      - tutorials-signing-key
     labels:
       traefik.enable: "true"
       traefik.docker.network: almis-edge
@@ -85,3 +96,7 @@ volumes:
   postgres:
     external: true
     name: ${POSTGRES_VOLUME:-almis-main_postgres}
+
+secrets:
+  tutorials-signing-key:
+    file: ${TUTORIALS_SIGNING_KEY_FILE:?TUTORIALS_SIGNING_KEY_FILE must be set}
