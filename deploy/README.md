@@ -63,7 +63,7 @@ git push fork v1.4.0
 
 The tag must point at a commit that `main` already contains, or the deployment fails before touching the host. CI runs again on the tagged commit first. To roll back, re-run CI on an older tag with `gh workflow run CI --ref v1.3.0`. Rolling back the image does not undo database migrations.
 
-Builds run on GitHub-hosted runners. They pass a Docker image to the local deployment runner using a short-lived Actions artifact. No GHCR password, deployment SSH key, or repository secret is needed.
+Releases build their image on the local deployment runner, where Docker's layer cache rebuilds a source-only change in seconds. PR preview images build on GitHub-hosted runners and reach the local runner as a short-lived Actions artifact, so PR code never builds on this host. No GHCR password, deployment SSH key, or repository secret is needed.
 
 A repository admin must register a self-hosted Linux x64 runner on this machine with label `almis-onprem`. The runner must run as the host user who owns `~/.local/share/almis/deploy` and has Docker access. Its PATH must include `docker`, `python3`, `cf`, `gh`, and their runtime dependencies. Use the installation commands GitHub provides under:
 
