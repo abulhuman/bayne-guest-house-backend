@@ -22,6 +22,8 @@ The current frontend allowlist is `https://almishotel.com` and `https://www.almi
 
 ## Bootstrap
 
+To rebuild the Windows rehearsal host, follow [windows/README.md](windows/README.md) first.
+
 Install Docker Engine, Compose v2 with `--wait`, Python 3, GitHub CLI, and Cloudflare CLI. Authenticate the Cloudflare CLI on the deployment host. Do not print its authentication tokens.
 
 ```bash
