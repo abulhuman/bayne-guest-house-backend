@@ -110,12 +110,14 @@ jobs:
       - name: Remove the preview and disposable database
         run: |
           python3 "$HOME/.local/share/almis/deploy/manage.py" remove-preview --pr "$PR_NUMBER"
-          docker image ls "ghcr.io/$GITHUB_REPOSITORY" --format '{{.Repository}}:{{.Tag}}' |
-            grep ":pr-$PR_NUMBER-" | xargs -r docker image rm
+          # Drop both tags the deploy step created, or the image stays on disk.
+          docker image ls --format '{{.Repository}}:{{.Tag}}' |
+            grep -E "^(ghcr.io/$GITHUB_REPOSITORY|almis-backend):pr-$PR_NUMBER-" | xargs -r docker image rm
       - name: Delete the preview images from the registry
         run: |
           set -euo pipefail
           versions="users/$OWNER/packages/container/$PACKAGE/versions"
-          gh api --paginate "$versions" \
-            --jq ".[] | select(any(.metadata.container.tags[]; startswith(\"pr-$PR_NUMBER-\"))) | .id" |
-            while read -r id; do gh api -X DELETE "$versions/$id"; done
+          # List every page before deleting, or deletions shift versions into pages already read.
+          ids=$(gh api --paginate "$versions" \
+            --jq ".[] | select(any(.metadata.container.tags[]; startswith(\"pr-$PR_NUMBER-\"))) | .id")
+          for id in $ids; do gh api -X DELETE "$versions/$id"; done
