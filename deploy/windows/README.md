@@ -13,11 +13,11 @@ On Windows, `bootstrap.ps1` does the following.
 - Sets the connected Wi-Fi profile to connect automatically.
 - Installs OpenSSH Server, starts it automatically, and disables password logins.
 - Adds the firewall rule `sshd-tailscale`, which allows TCP 22 only from `100.64.0.0/10`, and disables the default `OpenSSH-Server-In-TCP` rule.
-- Checks that the Tailscale service is installed and starts automatically.
+- Checks that the Tailscale service is installed and starts automatically, and turns on Tailscale unattended mode. Without it, Tailscale disconnects when the last user logs off, and the machine drops off the tailnet after every reboot until someone logs in.
 - Enables the Windows features `Microsoft-Windows-Subsystem-Linux` and `VirtualMachinePlatform`.
 - Installs the WSL package and writes `vmIdleTimeout=-1` and `instanceIdleTimeout=-1` to `%USERPROFILE%\.wslconfig`, so WSL never shuts down when idle.
 - Installs the `Ubuntu-24.04` distro as WSL 2, provisions it, and restarts it once so systemd is PID 1.
-- Registers the scheduled task `Almis WSL`. It runs `wsl.exe -d Ubuntu-24.04 -- sleep infinity` at boot, so WSL runs with nobody logged in.
+- Registers the scheduled task `Almis WSL`. It runs `wsl.exe -d Ubuntu-24.04 -- sleep infinity` at boot, so WSL runs with nobody logged in. The script prompts for the admin user's Windows password when it registers the task.
 
 Inside the distro, `wsl-provision.sh` does the following as root.
 
@@ -44,11 +44,11 @@ Confirm that key login works before you run the script. The script turns off pas
 
 ## Running it
 
-Copy the directory to the host and run the script over SSH. OpenSSH on Windows gives admin users an elevated session.
+Copy the directory to the host and run the script over SSH. OpenSSH on Windows gives admin users an elevated session. Use `ssh -t` so the password prompt works.
 
 ```bash
 scp -r deploy/windows silver-satellite:almis-bootstrap
-ssh silver-satellite powershell -NoProfile -ExecutionPolicy Bypass -File almis-bootstrap/bootstrap.ps1
+ssh -t silver-satellite powershell -NoProfile -ExecutionPolicy Bypass -File almis-bootstrap/bootstrap.ps1
 ```
 
 To copy a newer version later, delete `almis-bootstrap` on the host first. Otherwise `scp -r` nests the new copy inside the old one.
@@ -63,7 +63,9 @@ To verify the machine without changing it, add `-Check`. It runs only the tests 
 ssh silver-satellite powershell -NoProfile -ExecutionPolicy Bypass -File almis-bootstrap/bootstrap.ps1 -Check
 ```
 
-The `Almis WSL` task uses the S4U logon type by default, which starts at boot and stores no password. If S4U cannot start WSL on a machine, rerun with `-AutostartLogon Interactive`. The task then starts when `orca` logs on, so the machine also needs Windows autologon to recover from a reboot.
+The `Almis WSL` task stores `orca`'s password so it can start at boot with nobody logged in. Task Scheduler rejects a wrong password when the task is registered. If the password changes, the task stops starting. Delete the task with `Unregister-ScheduledTask -TaskName 'Almis WSL'` and rerun the script.
+
+The S4U logon type, which stores no password, does not work. On `silver-satellite` an S4U task ran `wsl.exe` at boot and exited with `0xFFFFFFFF`, and the stack only came up after someone logged in. To avoid storing a password, rerun with `-AutostartLogon Interactive`. The task then starts when `orca` logs on, so the machine also needs Windows autologon to recover from a reboot.
 
 ## Manual steps after it converges
 

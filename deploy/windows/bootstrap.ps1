@@ -11,14 +11,15 @@ Exits 3010 when Windows must restart before the remaining steps can run. Rerun i
 Runs only the tests. Exits 1 if any step is not converged.
 
 .PARAMETER AutostartLogon
-Logon type of the Almis WSL scheduled task. S4U starts WSL at boot with no stored password.
-Interactive starts it when this user logs on, which needs Windows autologon to survive a reboot.
+Logon type of the Almis WSL scheduled task. Password starts WSL at boot and prompts once for this
+user's Windows password, which Task Scheduler stores. Interactive starts it when this user logs on,
+which needs Windows autologon to survive a reboot. S4U tasks cannot start wsl.exe, so neither uses it.
 #>
 [CmdletBinding()]
 param(
     [switch]$Check,
-    [ValidateSet('S4U', 'Interactive')]
-    [string]$AutostartLogon = 'S4U'
+    [ValidateSet('Password', 'Interactive')]
+    [string]$AutostartLogon = 'Password'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +28,7 @@ $env:WSL_UTF8 = '1'
 $Distro = 'Ubuntu-24.04'
 $TaskName = 'Almis WSL'
 $WslExe = Join-Path $env:SystemRoot 'System32\wsl.exe'
+$TailscaleExe = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
 $TaskArguments = "-d $Distro -- sleep infinity"
 $SshdConfig = Join-Path $env:ProgramData 'ssh\sshd_config'
 $WslConfig = Join-Path $env:USERPROFILE '.wslconfig'
@@ -38,7 +40,7 @@ $WindowsFeatures = 'Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform'
 # USERDOMAIN is WORKGROUP in an OpenSSH session, so take the account from the process token.
 $Account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $Autostart = @{
-    S4U         = @{ Trigger = { New-ScheduledTaskTrigger -AtStartup }; TriggerClass = 'MSFT_TaskBootTrigger' }
+    Password    = @{ Trigger = { New-ScheduledTaskTrigger -AtStartup }; TriggerClass = 'MSFT_TaskBootTrigger' }
     Interactive = @{ Trigger = { New-ScheduledTaskTrigger -AtLogOn -User $Account }; TriggerClass = 'MSFT_TaskLogonTrigger' }
 }[$AutostartLogon]
 # bash -s fails on CR bytes, which appear if the file went through a Windows Git checkout.
@@ -207,10 +209,17 @@ function Test-AutostartTask {
 function Register-AutostartTask {
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 `
         -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    $principal = New-ScheduledTaskPrincipal -UserId $Account -LogonType $AutostartLogon
     $action = New-ScheduledTaskAction -Execute $WslExe -Argument $TaskArguments
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger (& $Autostart.Trigger) `
-        -Principal $principal -Settings $settings -Force
+    $task = @{ TaskName = $TaskName; Action = $action; Trigger = (& $Autostart.Trigger); Settings = $settings; Force = $true }
+    if ($AutostartLogon -eq 'Interactive') {
+        Register-ScheduledTask @task -Principal (New-ScheduledTaskPrincipal -UserId $Account -LogonType Interactive)
+        return
+    }
+    # Task Scheduler checks the password when it registers the task and keeps it in LSA.
+    $secure = Read-Host "Windows password for $Account" -AsSecureString
+    $plain = [Net.NetworkCredential]::new('', $secure).Password
+    try { Register-ScheduledTask @task -User $Account -Password $plain }
+    finally { $plain = $null }
 }
 
 $Steps = @(
@@ -299,6 +308,16 @@ $Steps = @(
             [bool]$service -and "$($service.StartType)" -eq 'Automatic'
         }
         Set    = { throw 'Install Tailscale and log in, then rerun.' }
+        Reboot = $false
+    },
+    @{
+        Name   = 'Tailscale stays connected with nobody logged in'
+        # Without unattended mode, Tailscale disconnects when the last user logs off and stays down after a reboot.
+        Test   = { [bool]((Invoke-Native $TailscaleExe 'debug prefs').Output | ConvertFrom-Json).ForceDaemon }
+        Set    = {
+            $set = Invoke-Native $TailscaleExe 'set --unattended'
+            if ($set.ExitCode -ne 0) { throw "tailscale set --unattended failed: $($set.Output)" }
+        }
         Reboot = $false
     },
     @{
