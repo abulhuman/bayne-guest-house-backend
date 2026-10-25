@@ -63,7 +63,7 @@ jobs:
     uses: ./.github/workflows/deploy-preview.yml
     permissions:
       contents: read
-      actions: read
+      packages: write
       pull-requests: write
     with:
       pr_number: ${{ github.event.pull_request.number }}
