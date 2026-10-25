@@ -2,7 +2,6 @@
 # Converges the Ubuntu-24.04 WSL distro into the Almis deployment host. Runs as root.
 # Usage: wsl-provision.sh [--check]
 # --check runs only the checks, prints each missing item, and exits 1 if any is missing.
-# The loop in main calls the step functions as check_$id and set_$id.
 # shellcheck disable=SC2329
 set -euo pipefail
 
@@ -50,7 +49,6 @@ WantedBy=multi-user.target
 EOF
 }
 
-# Each source is "list-name keyring key-url repo-url suite components".
 apt_sources() {
   local codename
   # shellcheck source=/dev/null
@@ -60,8 +58,7 @@ apt_sources() {
   echo "nodesource nodesource.asc https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key https://deb.nodesource.com/node_24.x nodistro main"
 }
 
-# Writes stdin to a file through a rename so an interrupted run never leaves it half written.
-write_file() {
+write_atomic() {
   local path=$1 mode=$2 tmp
   tmp=$(mktemp "$path.XXXXXX")
   cat >"$tmp"
@@ -69,8 +66,7 @@ write_file() {
   mv -f "$tmp" "$path"
 }
 
-# curl -o leaves nothing at the destination when a download fails partway.
-fetch() {
+fetch_atomic() {
   local url=$1 path=$2 tmp
   tmp=$(mktemp "$path.XXXXXX")
   curl -fsSL -o "$tmp" "$url"
@@ -89,18 +85,11 @@ installed() {
 
 systemd_running() { [[ -d /run/systemd/system ]]; }
 
-# Enabling only writes symlinks, so it works before systemd is PID 1. Docker test
-# containers have no systemctl at all, and there the step is skipped with a warning.
-enabled() {
-  if ! command -v systemctl >/dev/null; then
-    echo "warning: systemctl not found, cannot enable $*" >&2
-    return 0
-  fi
-  systemctl is-enabled --quiet "$@" 2>/dev/null
-}
+# Enabling only writes symlinks, so it works before systemd is PID 1.
+enabled() { systemctl is-enabled --quiet "$@" 2>/dev/null; }
 
 check_wsl_conf() { file_matches /etc/wsl.conf "$(wsl_conf)"; }
-set_wsl_conf() { wsl_conf | write_file /etc/wsl.conf 0644; }
+set_wsl_conf() { wsl_conf | write_atomic /etc/wsl.conf 0644; }
 
 check_user() {
   local entry
@@ -122,24 +111,23 @@ set_base_packages() {
   apt-get install -y -qq "${base_packages[@]}" >/dev/null
 }
 
-# A repository configured in any source file counts, so a source added by hand is never
-# duplicated. Two entries for one repository with different keyrings break apt-get update.
+# Two entries for one repository with different keyrings break apt-get update.
 configured() { grep -qsF -- "$1" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; }
 
 check_apt_sources() {
-  local name keyring key repo suite
-  while read -r name keyring key repo suite; do
+  local name keyring key repo suite_components
+  while read -r name keyring key repo suite_components; do
     configured "$repo" || return 1
   done < <(apt_sources)
 }
 set_apt_sources() {
-  local name keyring key repo suite arch
+  local name keyring key repo suite_components arch
   arch=$(dpkg --print-architecture)
   install -m 0755 -d "$keyrings"
-  while read -r name keyring key repo suite; do
+  while read -r name keyring key repo suite_components; do
     configured "$repo" && continue
-    fetch "$key" "$keyrings/$keyring"
-    echo "deb [arch=$arch signed-by=$keyrings/$keyring] $repo $suite" | write_file "/etc/apt/sources.list.d/$name.list" 0644
+    fetch_atomic "$key" "$keyrings/$keyring"
+    echo "deb [arch=$arch signed-by=$keyrings/$keyring] $repo $suite_components" | write_atomic "/etc/apt/sources.list.d/$name.list" 0644
   done < <(apt_sources)
 }
 
@@ -165,7 +153,7 @@ set_docker_enabled() { systemctl enable docker.service containerd.service; }
 
 check_runner_unit() { file_matches /etc/systemd/system/almis-runner.service "$(runner_unit)"; }
 set_runner_unit() {
-  runner_unit | write_file /etc/systemd/system/almis-runner.service 0644
+  runner_unit | write_atomic /etc/systemd/system/almis-runner.service 0644
   if systemd_running; then
     systemctl daemon-reload
     systemctl try-restart almis-runner.service

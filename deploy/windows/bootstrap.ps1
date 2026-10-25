@@ -129,7 +129,6 @@ function Set-KeyOnlySshd {
     if (-not $inserted) { $lines.Add('PasswordAuthentication no') }
     $staged = "$SshdConfig.almis"
     [IO.File]::WriteAllLines($staged, $lines, [Text.Encoding]::ASCII)
-    # A broken config would stop sshd and lock out the remote operator, so validate first.
     $test = Invoke-Native (Join-Path $env:SystemRoot 'System32\OpenSSH\sshd.exe') "-t -f `"$staged`""
     if ($test.ExitCode -ne 0) { throw "sshd rejected the new config: $($test.Output)" }
     # Replace keeps the original file's ACL, which sshd requires.
@@ -215,7 +214,6 @@ function Register-AutostartTask {
         Register-ScheduledTask @task -Principal (New-ScheduledTaskPrincipal -UserId $Account -LogonType Interactive)
         return
     }
-    # Task Scheduler checks the password when it registers the task and keeps it in LSA.
     $secure = Read-Host "Windows password for $Account" -AsSecureString
     $plain = [Net.NetworkCredential]::new('', $secure).Password
     try { Register-ScheduledTask @task -User $Account -Password $plain }
@@ -372,7 +370,7 @@ $Steps = @(
         Set    = {
             $run = Invoke-Native wsl.exe "-d $Distro -u root -- bash -s" -Stdin $ProvisionScript -Stream
             if ($run.ExitCode -ne 0) { throw "wsl-provision.sh exited $($run.ExitCode)" }
-            # wsl.conf only takes effect when the distro starts. The next Test starts it again.
+            # wsl.conf only takes effect when the distro starts.
             if ((Get-DistroInit) -ne 'systemd') { Invoke-Native wsl.exe "--terminate $Distro" }
         }
         Reboot = $false
@@ -398,7 +396,6 @@ function Test-Step($Step) {
         Write-Warning "$($Step.Name): $_"
         return $false
     }
-    # Stray pipeline output would make the step look converged.
     if ($result.Count -ne 1 -or $result[0] -isnot [bool]) { throw "Test for '$($Step.Name)' returned '$result', not one boolean" }
     $result[0]
 }
