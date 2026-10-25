@@ -113,11 +113,24 @@ jobs:
           # Drop both tags the deploy step created, or the image stays on disk.
           docker image ls --format '{{.Repository}}:{{.Tag}}' |
             grep -E "^(ghcr.io/$GITHUB_REPOSITORY|almis-backend):pr-$PR_NUMBER-" | xargs -r docker image rm
-      - name: Delete the preview images from the registry
+      - name: Delete closed PRs' images from the registry
         run: |
           set -euo pipefail
           versions="users/$OWNER/packages/container/$PACKAGE/versions"
           # List every page before deleting, or deletions shift versions into pages already read.
-          ids=$(gh api --paginate "$versions" \
-            --jq ".[] | select(any(.metadata.container.tags[]; startswith(\"pr-$PR_NUMBER-\"))) | .id")
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open" --jq '.[].number' > "$RUNNER_TEMP/open-prs"
+          gh api --paginate "$versions" --jq '.[] | [.id, (.metadata.container.tags | join(","))] | @tsv' \
+            > "$RUNNER_TEMP/versions"
+          # Delete every closed PR's versions, but GHCR refuses to delete the last tagged one,
+          # so keep the newest when nothing else would remain.
+          ids=$(python3 - "$RUNNER_TEMP/open-prs" "$RUNNER_TEMP/versions" <<'EOF'
+          import re, sys
+          open_prs = set(open(sys.argv[1]).read().split())
+          tagged = [line.rstrip('\n').split('\t') for line in open(sys.argv[2]) if line.split('\t')[1].strip()]
+          def closed(tags):
+              return any((m := re.match(r'pr-(\d+)-', tag)) and m[1] not in open_prs for tag in tags.split(','))
+          stale = [id for id, tags in tagged if closed(tags)]
+          print('\n'.join(stale[1:] if len(stale) == len(tagged) else stale))
+          EOF
+          )
           for id in $ids; do gh api -X DELETE "$versions/$id"; done
