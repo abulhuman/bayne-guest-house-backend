@@ -378,6 +378,13 @@ $Steps = @(
         Reboot = $false
     },
     @{
+        Name   = "Password of $Account never expires"
+        # The task stores this password. Local passwords expire after 42 days by default, and the task then stops starting.
+        Test   = { $null -eq (Get-LocalUser ($Account -split '\\')[-1]).PasswordExpires }
+        Set    = { Set-LocalUser ($Account -split '\\')[-1] -PasswordNeverExpires $true }
+        Reboot = $false
+    },
+    @{
         Name   = "Scheduled task '$TaskName' keeps WSL running ($AutostartLogon)"
         Test   = { Test-AutostartTask }
         Set    = { Register-AutostartTask }

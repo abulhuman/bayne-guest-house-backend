@@ -63,7 +63,7 @@ To verify the machine without changing it, add `-Check`. It runs only the tests 
 ssh silver-satellite powershell -NoProfile -ExecutionPolicy Bypass -File almis-bootstrap/bootstrap.ps1 -Check
 ```
 
-The `Almis WSL` task stores `orca`'s password so it can start at boot with nobody logged in. Task Scheduler rejects a wrong password when the task is registered. If the password changes, the task stops starting. Delete the task with `Unregister-ScheduledTask -TaskName 'Almis WSL'` and rerun the script.
+The `Almis WSL` task stores `orca`'s password so it can start at boot with nobody logged in. Task Scheduler rejects a wrong password when the task is registered. The script sets the password to never expire, because Windows expires local passwords after 42 days by default. If the password changes, the task stops starting. Delete the task with `Unregister-ScheduledTask -TaskName 'Almis WSL'` and rerun the script.
 
 The S4U logon type, which stores no password, does not work. On `silver-satellite` an S4U task ran `wsl.exe` at boot and exited with `0xFFFFFFFF`, and the stack only came up after someone logged in. To avoid storing a password, rerun with `-AutostartLogon Interactive`. The task then starts when `orca` logs on, so the machine also needs Windows autologon to recover from a reboot.
 
