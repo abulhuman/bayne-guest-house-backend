@@ -72,8 +72,8 @@ cmd_up() {
   mkdir -p "$RUN_DIR" "$evidence"
   local log="$RUN_DIR/up.log"; : >"$log"
 
-  [[ -d "$ROOT/node_modules/@nestjs/core" ]] || (cd "$ROOT" && npm ci --no-audit --no-fund >>"$log" 2>&1) || die "npm-ci log=$log"
-  (cd "$ROOT" && npx prisma generate >>"$log" 2>&1) || die "prisma-generate log=$log"
+  [[ -d "$ROOT/node_modules/@nestjs/core" ]] || (cd "$ROOT" && bun install --frozen-lockfile >>"$log" 2>&1) || die "install log=$log"
+  (cd "$ROOT" && bunx prisma generate >>"$log" 2>&1) || die "prisma-generate log=$log"
 
   if [[ ! -f "$PG_HOME/.hydrated" ]]; then
     npm install --prefix "$ROOT/.verify/tools" --no-audit --no-fund "$PG_PKG" >>"$log" 2>&1 || die "install-postgres log=$log"
@@ -103,13 +103,13 @@ NAMES_MODE=$names
 EOF
 
   local i
-  (cd "$ROOT" && DATABASE_URL="$db_url" DIRECT_URL="$db_url" npx prisma migrate deploy >>"$log" 2>&1) || die "migrate log=$log"
-  (cd "$ROOT" && DATABASE_URL="$db_url" DIRECT_URL="$db_url" npx prisma db seed >>"$log" 2>&1) || die "seed log=$log"
+  (cd "$ROOT" && DATABASE_URL="$db_url" DIRECT_URL="$db_url" bunx prisma migrate deploy >>"$log" 2>&1) || die "migrate log=$log"
+  (cd "$ROOT" && DATABASE_URL="$db_url" DIRECT_URL="$db_url" bunx prisma db seed >>"$log" 2>&1) || die "seed log=$log"
   if [[ "$names" == demo ]]; then
     [[ "$(psql -h 127.0.0.1 -p "$pg_port" -U postgres -d bgh -At -v ON_ERROR_STOP=1 \
       -c "update \"User\" set name = '${DEMO_NAME[admin]}' where email = '$ADMIN_EMAIL'" 2>>"$log")" == "UPDATE 1" ]] || die "demo-names log=$log"
   fi
-  (cd "$ROOT" && npm run build >>"$log" 2>&1) || die "build log=$log"
+  (cd "$ROOT" && bun run build >>"$log" 2>&1) || die "build log=$log"
 
   (cd "$ROOT" && exec env DATABASE_URL="$db_url" DIRECT_URL="$db_url" PORT="$app_port" HOST=127.0.0.1 \
     JWT_SECRET=verify-jwt-secret ATTENDANCE_API_KEY=verify-attendance-key \

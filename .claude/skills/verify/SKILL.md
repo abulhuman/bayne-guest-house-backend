@@ -17,10 +17,10 @@ S=.claude/skills/verify/scripts/control.sh   # run from the repo root
 $S up
 ```
 
-It installs deps if `node_modules` is missing, runs `prisma generate`, starts a fresh Postgres 16 cluster on a free port, runs `prisma migrate deploy`, seeds the admin user, runs `npm run build`, and starts `node dist/src/main` on another free port. Expect these outputs.
+It installs deps if `node_modules` is missing, runs `prisma generate`, starts a fresh Postgres 16 cluster on a free port, runs `prisma migrate deploy`, seeds the admin user, runs `bun run build`, and starts `node dist/src/main` on another free port. Expect these outputs.
 
 - `READY base=http://127.0.0.1:<port> id=<id> rev=<git-sha>[-dirty-<hash>] evidence=<dir> names=verify|demo` means it's up. Use that `base` and nothing else. The hash covers every change under `src` and `prisma`, untracked files included, so a second edit to a dirty tree still shows as stale.
-- `FAIL <step> log=<path>` means it isn't. Read the named log. Steps: `npm-ci`, `prisma-generate`, `install-postgres`, `hydrate-postgres`, `initdb`, `postgres-start`, `createdb`, `migrate`, `seed`, `demo-names`, `build`, `server-exited`, `health-timeout`. `FAIL bad-demo-names` means `DEMO_NAMES` held something other than `1`, `0` or nothing.
+- `FAIL <step> log=<path>` means it isn't. Read the named log. Steps: `install`, `prisma-generate`, `install-postgres`, `hydrate-postgres`, `initdb`, `postgres-start`, `createdb`, `migrate`, `seed`, `demo-names`, `build`, `server-exited`, `health-timeout`. `FAIL bad-demo-names` means `DEMO_NAMES` held something other than `1`, `0` or nothing.
 
 `up` is idempotent. If a healthy instance runs the current tree it prints `READY` again and reuses its database. If the instance is unhealthy, or `doctor` reports `STALE build-rev`, it tears it down and starts over, so after editing `src/` or `prisma/` a plain `up` rebuilds. Postgres comes from the `@embedded-postgres/linux-x64` npm binaries installed under `.verify/tools/`, so Docker isn't needed.
 
@@ -89,5 +89,5 @@ It kills only the pid recorded at `up`, after checking that its cmdline is `dist
 
 ## Helpers
 
-- `scripts/control.sh` is the only helper. It needs `node`, `npm`, `curl`, `jq`, `psql`, `pg_isready` and `ss`, all on this machine.
+- `scripts/control.sh` is the only helper. It needs `bun`, `node`, `npm`, `curl`, `jq`, `psql`, `pg_isready` and `ss`, all on this machine.
 - Fixed values the instance uses: `JWT_SECRET=verify-jwt-secret` and `ATTENDANCE_API_KEY=verify-attendance-key`.
