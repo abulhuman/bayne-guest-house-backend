@@ -37,15 +37,12 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit -p tsconfig.json
-      - run: npx jest
-      - run: npx prisma migrate deploy
-      - run: npm run test:integration
+      - uses: jdx/mise-action@v4
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit -p tsconfig.json
+      - run: bunx jest
+      - run: bunx prisma migrate deploy
+      - run: bun run test:integration
 
   # Production deploys a release tag, not every merge. Re-run this workflow on an
   # older tag to roll back: gh workflow run CI --ref v1.2.3

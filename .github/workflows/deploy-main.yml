@@ -13,7 +13,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: [self-hosted, linux, x64, almis-onprem]
-    # A cold build that reinstalls npm packages took 6 minutes on this host.
+    # A cold build that reinstalls packages took 6 minutes on this host.
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
