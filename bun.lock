@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "guest-house-backend",
+      "name": "@almis/backend",
       "dependencies": {
         "@nestjs/common": "^11.0.1",
         "@nestjs/config": "^4.0.2",
