@@ -60,4 +60,17 @@ describe('AuthModule config', () => {
     );
     expect(claims.exp - claims.iat).toBe(3600);
   });
+
+  it('reads a timespan with a unit', async () => {
+    const claims = await signWithEnvFile(
+      'JWT_SECRET=from-env-file\nJWT_EXPIRES_IN=12 hours\n',
+    );
+    expect(claims.exp - claims.iat).toBe(12 * 60 * 60);
+  });
+
+  it('refuses to start with an expiry jsonwebtoken cannot parse', async () => {
+    await expect(
+      signWithEnvFile('JWT_SECRET=from-env-file\nJWT_EXPIRES_IN=7 dayz\n'),
+    ).rejects.toThrow('JWT_EXPIRES_IN must be a number of seconds');
+  });
 });

@@ -92,7 +92,8 @@ export class StaffController {
   )
   setPhoto(
     @Param('id', ParseIntPipe) id: number,
-    @UploadedFile() file?: { buffer: Buffer },
+    // Memory storage builds the buffer with Buffer.concat, which allocates a plain ArrayBuffer.
+    @UploadedFile() file?: { buffer: Buffer<ArrayBuffer> },
   ) {
     return this.staffService.setPhoto(id, parseStaffPhoto(file?.buffer));
   }
