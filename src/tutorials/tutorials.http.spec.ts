@@ -19,7 +19,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
-import type { Response as TestResponse } from 'superagent';
 import type { Server } from 'node:http';
 import { parseManifest } from './tutorial-manifest';
 import { MEDIA_RETRY_MS, type TutorialView } from './tutorials.service';
@@ -35,7 +34,7 @@ const FIXTURES = join(__dirname, 'fixtures');
 const STORE_VIDEO = 'store-receive-stock.ca14fc82.mp4';
 
 const binary = (
-  res: TestResponse,
+  res: request.Response,
   done: (err: Error | null, body: Buffer) => void,
 ) => {
   const chunks: Buffer[] = [];
