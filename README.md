@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> The backend moved to [almis-hotel-portal](https://github.com/abulhuman/almis-hotel-portal) at `apps/backend`, and new work and issues go there. Production still deploys `v*` tags from this repo until the `almis-onprem` runner is registered to the portal. After that, releases are `backend-v*` tags in the portal, and this repo gets archived.
+> The backend moved to [almis-hotel-portal](https://github.com/abulhuman/almis-hotel-portal) at `apps/backend`. This repo is archived. New work and issues go to the portal, and production deploys `backend-v*` tags from there, starting with `backend-v1.0.4`.
 
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
