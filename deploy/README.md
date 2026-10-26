@@ -122,7 +122,7 @@ Do not print `docker compose config`, `docker inspect`, or env file contents in 
 
 Back up the production database before accepting real guest data and before migrations. Write dumps to a protected directory and keep a copy on another machine. A named Docker volume survives container replacement, but it is not a backup.
 
-If a migration fails, stop `api`, inspect the migration error, and repair the database. Use the same env-file flags with `docker compose run --rm --no-deps api npx prisma migrate resolve --rolled-back <name>` after undoing its changes, or `--applied` after completing the migration manually. Restart with `manage.py main --image <fixed-image>` after the database state is correct. Changing an image does not undo database migrations.
+If a migration fails, stop `api`, inspect the migration error, and repair the database. Use the same env-file flags with `docker compose run --rm --no-deps api bun x prisma migrate resolve --rolled-back <name>` after undoing its changes, or `--applied` after completing the migration manually. Restart with `manage.py main --image <fixed-image>` after the database state is correct. Changing an image does not undo database migrations.
 
 Do not run the existing development seed in production. It creates a known password. Create the initial admin with a separately generated credential and require a password change on first login.
 

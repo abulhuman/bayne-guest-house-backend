@@ -35,7 +35,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      # The host pulls only the layers it lacks, so a PR that leaves package-lock.json
+      # The host pulls only the layers it lacks, so a PR that leaves bun.lock
       # alone moves tens of megabytes over the host's link instead of the whole image.
       - uses: docker/build-push-action@v6
         with:
